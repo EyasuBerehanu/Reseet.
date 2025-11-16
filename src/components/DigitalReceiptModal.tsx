@@ -25,6 +25,9 @@ interface DigitalReceiptModalProps {
   category?: string;
   receiptNumber?: string;
   imageUrl?: string; // Original photo of the receipt
+  discount?: number;
+  tip?: number;
+  paymentMethod?: string;
 }
 
 export function DigitalReceiptModal({
@@ -39,6 +42,9 @@ export function DigitalReceiptModal({
   category,
   receiptNumber = 'RCP-2025-11-001',
   imageUrl,
+  discount,
+  tip,
+  paymentMethod,
 }: DigitalReceiptModalProps) {
   const [viewMode, setViewMode] = useState<'digitized' | 'photo'>('digitized');
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -164,11 +170,33 @@ export function DigitalReceiptModal({
                   <span>TAX</span>
                   <span>${tax.toFixed(2)}</span>
                 </div>
+                {discount && discount > 0 && (
+                  <div className="flex justify-between" style={{ fontSize: '12px' }}>
+                    <span>DISCOUNT</span>
+                    <span>-${discount.toFixed(2)}</span>
+                  </div>
+                )}
+                {tip && tip > 0 && (
+                  <div className="flex justify-between" style={{ fontSize: '12px' }}>
+                    <span>TIP</span>
+                    <span>${tip.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 border-t border-gray-300" style={{ fontSize: '14px' }}>
                   <span>TOTAL</span>
                   <span>${total.toFixed(2)}</span>
                 </div>
               </div>
+
+              {/* Payment Method */}
+              {paymentMethod && (
+                <div className="pt-2 pb-4 border-b-2 border-dashed border-gray-300">
+                  <div className="flex justify-between" style={{ fontSize: '12px' }}>
+                    <span>PAYMENT METHOD</span>
+                    <span className="font-semibold">{paymentMethod.toUpperCase()}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Barcode representation */}
               <div className="pt-2">

@@ -16,6 +16,7 @@ import { Label } from './ui/label';
 import type { Category, Receipt } from '../App';
 
 interface HomeScreenProps {
+  userName?: string;
   categories: Category[];
   receipts: Receipt[];
   onCategoryClick?: (category: Category) => void;
@@ -29,6 +30,7 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({
+  userName,
   categories,
   receipts,
   onCategoryClick,
@@ -97,13 +99,19 @@ export function HomeScreen({
     <div className="min-h-screen bg-gray-50 pb-20 pt-8">
       <div className="max-w-md mx-auto px-4 pt-12">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-[rgb(0,0,0)] text-[36px] font-bold">Receipts</h1>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h1 className="text-[rgb(0,0,0)] text-[36px] font-bold">Receipts</h1>
+            {userName && (
+              <p className="text-[rgb(0,0,0)] mt-2">Hello {userName}</p>
+            )}
+          </div>
           <Button size="sm" className="rounded-full" onClick={onNavigateToScan}>
             <Plus className="w-4 h-4 mr-1" />
             Scan
           </Button>
         </div>
+        <div className="mb-8"></div>
 
         {/* Categories */}
         <div className="space-y-4 mb-6">
@@ -201,6 +209,9 @@ export function HomeScreen({
           total={selectedReceipt.amount}
           receiptNumber={`RCP-2025-11-${selectedReceipt.id.toString().padStart(3, '0')}`}
           imageUrl={selectedReceipt.imageUrl}
+          discount={selectedReceipt.discount}
+          tip={selectedReceipt.tip}
+          paymentMethod={selectedReceipt.paymentMethod}
         />
       )}
 

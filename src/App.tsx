@@ -412,7 +412,8 @@ export default function App() {
 
       {/* Render Current Screen */}
       {currentScreen === 'home' && (
-        <HomeScreen 
+        <HomeScreen
+          userName={user?.user_metadata?.name}
           categories={categories}
           receipts={receipts}
           onCategoryClick={handleCategoryClick}
@@ -434,13 +435,14 @@ export default function App() {
         />
       )}
       {currentScreen === 'detail' && (
-        <ReceiptDetailScreen 
+        <ReceiptDetailScreen
           category={selectedCategory}
           receipts={receipts}
           onBack={handleBackToHome}
           onDeleteReceipt={handleDeleteReceipt}
           onUpdateCategory={handleUpdateCategory}
           onDeleteCategory={handleDeleteCategory}
+          onUnsortReceipt={handleUndoMoveReceipt}
         />
       )}
       {currentScreen === 'scan' && (

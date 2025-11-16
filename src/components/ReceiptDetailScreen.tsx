@@ -31,15 +31,17 @@ interface ReceiptDetailScreenProps {
   onDeleteReceipt: (receiptId: number) => void;
   onUpdateCategory: (folderId: number, updates: Partial<Category>) => void;
   onDeleteCategory: (folderId: number) => void;
+  onUnsortReceipt?: (receiptId: number) => void;
 }
 
-export function ReceiptDetailScreen({ 
-  category, 
-  receipts, 
+export function ReceiptDetailScreen({
+  category,
+  receipts,
   onBack,
   onDeleteReceipt,
   onUpdateCategory,
   onDeleteCategory,
+  onUnsortReceipt,
 }: ReceiptDetailScreenProps) {
   const [selectedReceiptId, setSelectedReceiptId] = useState<number | null>(null);
   const [receiptToDelete, setReceiptToDelete] = useState<number | null>(null);
@@ -160,7 +162,8 @@ export function ReceiptDetailScreen({
                       category={receipt.category}
                       amount={receipt.amount}
                       score={receipt.score}
-                      draggable={false}
+                      draggable={true}
+                      onUnsort={onUnsortReceipt}
                     />
                   </div>
                   <button
@@ -198,6 +201,9 @@ export function ReceiptDetailScreen({
           total={selectedReceipt.amount}
           receiptNumber={`RCP-2025-11-${selectedReceipt.id.toString().padStart(3, '0')}`}
           imageUrl={selectedReceipt.imageUrl}
+          discount={selectedReceipt.discount}
+          tip={selectedReceipt.tip}
+          paymentMethod={selectedReceipt.paymentMethod}
         />
       )}
 

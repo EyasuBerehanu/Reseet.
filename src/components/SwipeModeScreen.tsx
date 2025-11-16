@@ -20,13 +20,16 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [lastFiledReceipt, setLastFiledReceipt] = useState<{ id: number; categoryId: number } | null>(null);
   const [showUndo, setShowUndo] = useState(false);
+  const [conveyorOffset, setConveyorOffset] = useState(0);
+  const [animationSpeed, setAnimationSpeed] = useState(5);
   const receiptCenterRef = useRef({ x: 0, y: 0 });
   const dragStartRef = useRef({ x: 0, y: 0 });
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const conveyorRef = useRef<HTMLDivElement | null>(null);
 
   const unsortedReceipts = receipts.filter(r => !r.folderId);
   const currentReceipt = unsortedReceipts[currentReceiptIndex];
-  const categoryRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+  const categoryRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // Get category counts
   const categoryCounts = categories.map(category => ({
@@ -40,8 +43,9 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
 
     const activationRadius = 100; // How close the receipt needs to be to a category
 
-    for (const category of categoryCounts) {
-      const element = categoryRefs.current[category.id];
+    // Check all category instances (original + duplicates)
+    for (const key in categoryRefs.current) {
+      const element = categoryRefs.current[key];
       if (!element) continue;
 
       const rect = element.getBoundingClientRect();
@@ -49,29 +53,30 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
       const centerY = rect.top + rect.height / 2;
 
       const distance = Math.sqrt(
-        Math.pow(mouseX - centerX, 2) + 
+        Math.pow(mouseX - centerX, 2) +
         Math.pow(mouseY - centerY, 2)
       );
 
       if (distance < activationRadius) {
-        return category.id;
+        // Extract the category ID from the key (e.g., "1-0" -> 1)
+        const categoryId = parseInt(key.split('-')[0]);
+        return categoryId;
       }
     }
 
     return null;
   };
 
-  // Unified drag start handler for both mouse and touch
-  const handleDragStart = (clientX: number, clientY: number, receiptId: number, element: HTMLElement) => {
-    const rect = element.getBoundingClientRect();
+  const handleMouseDown = (e: React.MouseEvent, receiptId: number) => {
+    const rect = e.currentTarget.getBoundingClientRect();
     receiptCenterRef.current = {
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     };
 
     dragStartRef.current = {
-      x: clientX,
-      y: clientY,
+      x: e.clientX,
+      y: e.clientY,
     };
 
     setIsDragging(true);
@@ -81,23 +86,102 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
     setDragPosition({ x: 0, y: 0 });
   };
 
-  // Unified drag move handler
-  const handleDragMove = (clientX: number, clientY: number) => {
+  const handleTouchStart = (e: React.TouchEvent, receiptId: number) => {
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    receiptCenterRef.current = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+
+    dragStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+
+    setIsDragging(true);
+    setIsSnappingBack(false);
+    setShowCategories(true);
+    setDraggedReceiptId(receiptId);
+    setDragPosition({ x: 0, y: 0 });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || !draggedReceiptId || isSnappingBack) return;
 
-    // Calculate drag offset from start position
-    const deltaX = clientX - dragStartRef.current.x;
-    const deltaY = clientY - dragStartRef.current.y;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - dragStartRef.current.x;
+    const deltaY = touch.clientY - dragStartRef.current.y;
 
     setDragPosition({ x: deltaX, y: deltaY });
 
-    // Check if receipt is near any category based on position
-    const activeCategoryId = calculateActiveCategory(clientX, clientY);
+    // Calculate if folders fit on screen
+    const folderWidth = 120;
+    const gap = 24;
+    const totalWidth = categories.length * folderWidth + (categories.length - 1) * gap;
+    const viewportWidth = window.innerWidth;
+    const padding = 48;
+
+    if (totalWidth + padding <= viewportWidth) {
+      setConveyorOffset(0);
+    } else {
+      const scrollMultiplier = 3.5;
+      let newOffset = -deltaX * scrollMultiplier;
+      const maxPositiveOffset = 0;
+      const maxNegativeOffset = -(totalWidth - viewportWidth + padding);
+      newOffset = Math.max(maxNegativeOffset, Math.min(maxPositiveOffset, newOffset));
+      setConveyorOffset(newOffset);
+    }
+
+    const activeCategoryId = calculateActiveCategory(touch.clientX, touch.clientY);
     setActiveDropZone(activeCategoryId);
   };
 
-  // Unified drag end handler
-  const handleDragEnd = () => {
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !draggedReceiptId || isSnappingBack) return;
+
+    // Calculate drag offset from start position
+    const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
+
+    setDragPosition({ x: deltaX, y: deltaY });
+
+    // Calculate if folders fit on screen
+    // Estimate: Each folder is ~120px wide (75px icon + label area) + 24px gap
+    const folderWidth = 120;
+    const gap = 24;
+    const totalWidth = categories.length * folderWidth + (categories.length - 1) * gap;
+    const viewportWidth = window.innerWidth;
+    const padding = 48; // Account for px-6 padding on both sides
+
+    // If all folders fit on screen, no scrolling needed
+    if (totalWidth + padding <= viewportWidth) {
+      setConveyorOffset(0);
+    } else {
+      // Folders overflow - enable scrolling
+      // Move conveyor opposite to drag direction
+      // Drag right = scroll left (negative offset), drag left = scroll right (positive offset)
+      const scrollMultiplier = 3.5;
+      let newOffset = -deltaX * scrollMultiplier;
+
+      // Calculate bounds to stop at first and last folder
+      // Left bound (scrolling right, positive offset): start at 0
+      const maxPositiveOffset = 0;
+      // Right bound (scrolling left, negative offset): show last folder
+      const maxNegativeOffset = -(totalWidth - viewportWidth + padding);
+
+      // Clamp the offset to stay within bounds
+      newOffset = Math.max(maxNegativeOffset, Math.min(maxPositiveOffset, newOffset));
+
+      setConveyorOffset(newOffset);
+    }
+
+    // Check if receipt is near any category based on mouse position
+    const activeCategoryId = calculateActiveCategory(e.clientX, e.clientY);
+    setActiveDropZone(activeCategoryId);
+  };
+
+  const handleTouchEnd = () => {
     if (!isDragging || !draggedReceiptId) return;
 
     // If dropped on a category, move the receipt
@@ -132,7 +216,7 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
       setActiveDropZone(null);
       setDragPosition({ x: 0, y: 0 });
     } else {
-      // Snap back to center
+      // Snap back to center - prevent further moves from affecting position
       setIsDragging(false);
       setIsSnappingBack(true);
       setActiveDropZone(null);
@@ -147,52 +231,70 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
     }
   };
 
-  // Mouse event handlers
-  const handleMouseDown = (e: React.MouseEvent, receiptId: number) => {
-    handleDragStart(e.clientX, e.clientY, receiptId, e.currentTarget as HTMLElement);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    handleDragMove(e.clientX, e.clientY);
-  };
-
   const handleMouseUp = () => {
-    handleDragEnd();
+    if (!isDragging || !draggedReceiptId) return;
+
+    // If dropped on a category, move the receipt
+    if (activeDropZone) {
+      onMoveReceipt(draggedReceiptId, activeDropZone);
+
+      // Store the last filed receipt for undo
+      setLastFiledReceipt({ id: draggedReceiptId, categoryId: activeDropZone });
+      setShowUndo(true);
+
+      // Clear any existing undo timer
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+      }
+
+      // Auto-hide undo button after 5 seconds
+      undoTimerRef.current = setTimeout(() => {
+        setShowUndo(false);
+        setLastFiledReceipt(null);
+      }, 5000);
+
+      // Move to next receipt
+      if (currentReceiptIndex < unsortedReceipts.length - 1) {
+        setCurrentReceiptIndex(currentReceiptIndex + 1);
+      }
+
+      // Reset immediately for filed receipt
+      setIsDragging(false);
+      setIsSnappingBack(false);
+      setShowCategories(false);
+      setDraggedReceiptId(null);
+      setActiveDropZone(null);
+      setDragPosition({ x: 0, y: 0 });
+    } else {
+      // Snap back to center - prevent further mouse moves from affecting position
+      setIsDragging(false);
+      setIsSnappingBack(true);
+      setActiveDropZone(null);
+      setDragPosition({ x: 0, y: 0 });
+
+      // Hide categories after snap-back animation completes
+      setTimeout(() => {
+        setIsSnappingBack(false);
+        setShowCategories(false);
+        setDraggedReceiptId(null);
+      }, 400);
+    }
   };
 
-  // Touch event handlers
-  const handleTouchStart = (e: React.TouchEvent, receiptId: number) => {
-    e.preventDefault(); // Prevent scrolling while dragging
-    const touch = e.touches[0];
-    handleDragStart(touch.clientX, touch.clientY, receiptId, e.currentTarget as HTMLElement);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
-    e.preventDefault(); // Prevent scrolling while dragging
-    const touch = e.touches[0];
-    handleDragMove(touch.clientX, touch.clientY);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.preventDefault();
-    handleDragEnd();
-  };
-  
   const handleUndo = () => {
     if (!lastFiledReceipt) return;
-    
+
     onUndoMove(lastFiledReceipt.id);
     setShowUndo(false);
     setLastFiledReceipt(null);
-    
+
     // Clear the auto-hide timer
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
     }
   };
-  
+
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
@@ -233,7 +335,7 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
 
   return (
     <div
-      className="h-screen bg-[#f5f5f0] relative overflow-hidden select-none touch-none pt-8"
+      className="h-screen bg-[#f5f5f0] relative overflow-hidden select-none"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
@@ -241,13 +343,13 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
       onTouchEnd={handleTouchEnd}
     >
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-30 px-6 pt-6">
+      <div className="absolute top-0 left-0 right-0 z-30 px-6 pt-12">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-[rgb(0,0,0)] text-[36px] font-bold">Swipe</h1>
         </div>
       </div>
 
-      {/* Category grid - appears when dragging */}
+      {/* Category conveyor belt - appears when dragging */}
       <AnimatePresence>
         {showCategories && (
           <motion.div
@@ -255,28 +357,37 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="absolute bottom-[67px] left-0 right-0 z-10 px-6"
+            className="absolute bottom-[67px] left-0 right-0 z-10 overflow-hidden"
           >
-            <div className="flex flex-wrap justify-center gap-12">
-              {categoryCounts.map((category, index) => {
+
+            <motion.div
+              ref={conveyorRef}
+              className="flex gap-6 px-6"
+              animate={{ x: conveyorOffset }}
+              transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+            >
+              {/* Render categories once - scrolling stops at bounds */}
+              {categoryCounts.map((category) => {
                 const isActive = activeDropZone === category.id;
+                const uniqueKey = `${category.id}`;
 
                 return (
                   <motion.div
-                    key={category.id}
-                    ref={(el) => { categoryRefs.current[category.id] = el; }}
+                    key={uniqueKey}
+                    ref={(el) => { categoryRefs.current[uniqueKey] = el; }}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    transition={{ 
-                      type: 'spring', 
-                      stiffness: 400, 
+                    transition={{
+                      type: 'spring',
+                      stiffness: 400,
                       damping: 25,
-                      delay: index * 0.05 
+                      delay: 0
                     }}
+                    className="flex-shrink-0"
                   >
                     <motion.div
-                      animate={{ 
+                      animate={{
                         scale: isActive ? 1.3 : 1,
                       }}
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -284,17 +395,17 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
                     >
                       {/* Category icon */}
                       <div className={`transition-all ${isActive ? 'drop-shadow-2xl' : ''}`}>
-                        <FolderIcon 
-                          color={category.color} 
-                          size={isActive ? 100 : 85} 
+                        <FolderIcon
+                          color={category.color}
+                          size={isActive ? 100 : 75}
                           label={category.label}
                           isActive={isActive}
                           count={category.count}
                         />
                       </div>
-                      
+
                       {/* Category label */}
-                      <motion.div 
+                      <motion.div
                         animate={{
                           scale: isActive ? 1.15 : 1,
                           y: isActive ? -8 : 0,
@@ -320,7 +431,7 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
                   </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -360,19 +471,20 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
             </motion.div>
           )}
         </AnimatePresence>
-        
+
         <motion.div
           id="swipe-receipt"
-          className="bg-white shadow-2xl cursor-grab active:cursor-grabbing touch-none"
+          className="bg-white shadow-2xl cursor-grab active:cursor-grabbing"
           style={{
             width: '280px',
           }}
-          initial={{ x: 0, y: 0, scale: 1, rotate: 0 }}
+          initial={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 }}
           animate={{
             x: dragPosition.x,
             y: dragPosition.y,
             scale: (isDragging || isSnappingBack) ? 0.7 : 1,
             rotate: (isDragging || isSnappingBack) && (dragPosition.x !== 0 || dragPosition.y !== 0) ? dragPosition.x * 0.05 : 0,
+            opacity: 1,
           }}
           transition={{
             type: 'spring',
@@ -462,7 +574,7 @@ export function SwipeModeScreen({ categories, receipts, onMoveReceipt, onUndoMov
 
         {/* Receipt counter */}
         {!isDragging && !isSnappingBack && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-center mt-4 text-gray-600"

@@ -4,14 +4,22 @@ export interface AuthUser {
   id: string;
   email: string;
   created_at?: string;
+  user_metadata?: {
+    name?: string;
+  };
 }
 
 export const authService = {
   // Sign up with email and password
-  async signUp(email: string, password: string) {
+  async signUp(email: string, password: string, name?: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          name: name || '',
+        },
+      },
     });
     if (error) throw error;
     return data;

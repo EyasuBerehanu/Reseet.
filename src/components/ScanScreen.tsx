@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Camera as CameraIcon, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Camera as CameraIcon, X, Loader2, Image as ImageIcon, Mail } from 'lucide-react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Button } from './ui/button';
 import { Receipt } from '../App';
 import { AIReceiptScanner } from '../services/aiReceiptScanner';
+import { EmailReceiptParser } from '../services/emailReceiptParser';
 import { ReceiptConfirmationScreen } from './ReceiptConfirmationScreen';
 
 interface ScanScreenProps {
@@ -16,6 +17,7 @@ export function ScanScreen({ onAddReceipt, onClose }: ScanScreenProps) {
   const [scannedReceipt, setScannedReceipt] = useState<Omit<Receipt, 'id'> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     console.log('✨ ScanScreen MOUNTED');
@@ -38,6 +40,7 @@ export function ScanScreen({ onAddReceipt, onClose }: ScanScreenProps) {
   }
 
   const aiScanner = new AIReceiptScanner(apiKey);
+  const emailParser = new EmailReceiptParser(apiKey);
 
   const takePicture = async () => {
     if (isProcessing) return;
@@ -150,6 +153,38 @@ export function ScanScreen({ onAddReceipt, onClose }: ScanScreenProps) {
       }
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleEmailUpload = () => {
+    // Trigger file input click
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || isProcessing) return;
+
+    try {
+      setIsProcessing(true);
+      setError(null);
+
+      console.log('📧 Processing email receipt file:', file.name, file.type);
+
+      // Use email parser to handle different file types
+      const receipt = await emailParser.parseEmailReceipt(file);
+      console.log('✅ Email receipt analyzed:', receipt);
+
+      setScannedReceipt(receipt);
+    } catch (err: any) {
+      console.error('❌ Error processing email receipt:', err);
+      setError(err.message || 'Failed to process email receipt. Please try again.');
+    } finally {
+      setIsProcessing(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -289,6 +324,25 @@ export function ScanScreen({ onAddReceipt, onClose }: ScanScreenProps) {
             <ImageIcon className="w-5 h-5 mr-2" />
             Choose from Library
           </Button>
+
+          <Button
+            onClick={handleEmailUpload}
+            disabled={isProcessing}
+            variant="ghost"
+            className="w-full rounded-full py-7 text-white hover:bg-white/10"
+          >
+            <Mail className="w-5 h-5 mr-2" />
+            Upload Email Receipt
+          </Button>
+
+          {/* Hidden file input for email receipts */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.pdf,.html,.eml,message/rfc822"
+            onChange={handleFileChange}
+            className="hidden"
+          />
         </div>
       </div>
     </div>

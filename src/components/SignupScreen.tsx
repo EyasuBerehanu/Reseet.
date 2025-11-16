@@ -10,6 +10,7 @@ interface SignupScreenProps {
 }
 
 export function SignupScreen({ onSignupSuccess, onNavigateToLogin }: SignupScreenProps) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,6 +24,12 @@ export function SignupScreen({ onSignupSuccess, onNavigateToLogin }: SignupScree
     setIsLoading(true);
 
     // Validation
+    if (!name.trim()) {
+      setError('Name is required');
+      setIsLoading(false);
+      return;
+    }
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
       setIsLoading(false);
@@ -36,7 +43,7 @@ export function SignupScreen({ onSignupSuccess, onNavigateToLogin }: SignupScree
     }
 
     try {
-      await authService.signUp(email, password);
+      await authService.signUp(email, password, name.trim());
       setSuccess(true);
 
       // Redirect to login after 2 seconds
@@ -89,6 +96,19 @@ export function SignupScreen({ onSignupSuccess, onNavigateToLogin }: SignupScree
 
           {/* Signup Form */}
           <form onSubmit={handleSignup} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

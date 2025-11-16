@@ -26,11 +26,14 @@ export const excelExportService = {
       'Merchant/Vendor': receipt.merchant,
       'Amount': receipt.amount,
       'Category': receipt.category,
+      'Payment Method': receipt.paymentMethod || 'Unknown',
       'Description': receipt.items.length > 0
         ? receipt.items.map(item => item.description).join(', ')
         : 'No items',
       'Subtotal': receipt.subtotal || 0,
       'Tax': receipt.tax || 0,
+      'Discount': receipt.discount || 0,
+      'Tip': receipt.tip || 0,
       'Classification': getClassification(receipt.score),
       'Write-off Likelihood': `${receipt.score}%`,
       'Audit Notes': '', // Empty column for CPA use
@@ -46,9 +49,12 @@ export const excelExportService = {
       { wch: 25 }, // Merchant/Vendor
       { wch: 12 }, // Amount
       { wch: 15 }, // Category
+      { wch: 18 }, // Payment Method
       { wch: 40 }, // Description
       { wch: 12 }, // Subtotal
       { wch: 10 }, // Tax
+      { wch: 10 }, // Discount
+      { wch: 10 }, // Tip
       { wch: 25 }, // Classification
       { wch: 20 }, // Write-off Likelihood
       { wch: 30 }, // Audit Notes
