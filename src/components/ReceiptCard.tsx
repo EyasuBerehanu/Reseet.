@@ -15,6 +15,7 @@ interface ReceiptCardProps {
   offsetX?: number;
   draggable?: boolean;
   onUnsort?: (receiptId: number) => void;
+  onClick?: () => void;
 }
 
 export function ReceiptCard({
@@ -29,10 +30,16 @@ export function ReceiptCard({
   offsetX = 0,
   draggable = false,
   onUnsort,
+  onClick,
 }: ReceiptCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isOverUnsort, setIsOverUnsort] = useState(false);
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const unsortZoneRef = React.useRef<HTMLDivElement>(null);
 
+  // Desktop drag handlers
   const handleDragStart = (e: React.DragEvent) => {
     if (id && draggable) {
       e.dataTransfer.setData('receiptId', id.toString());
@@ -45,10 +52,68 @@ export function ReceiptCard({
     setIsOverUnsort(false);
   };
 
+  // Touch handlers for mobile swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (id && draggable && onUnsort) {
+      const touch = e.touches[0];
+      setTouchStartX(touch.clientX);
+      setTouchStartY(touch.clientY);
+      setIsDragging(false);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!onUnsort) return;
+
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = Math.abs(touch.clientY - touchStartY);
+
+    // Only swipe horizontally if the movement is more horizontal than vertical
+    if (Math.abs(deltaX) > deltaY && Math.abs(deltaX) > 10) {
+      setIsDragging(true);
+      // Only allow left swipe (negative deltaX)
+      if (deltaX < 0) {
+        setSwipeOffset(deltaX);
+        // Show unsort indicator when swiped more than 50px
+        setIsOverUnsort(deltaX < -50);
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = Math.abs(touch.clientY - touchStartY);
+
+    // If moved less than 10px, treat as click
+    if (Math.abs(deltaX) < 10 && deltaY < 10) {
+      if (onClick) {
+        onClick();
+      }
+      setSwipeOffset(0);
+      setIsDragging(false);
+      setIsOverUnsort(false);
+      return;
+    }
+
+    // If swiped left more than 100px, unsort the receipt
+    if (deltaX < -100 && id && onUnsort) {
+      onUnsort(id);
+    }
+
+    // Reset swipe
+    setSwipeOffset(0);
+    setIsDragging(false);
+    setIsOverUnsort(false);
+  };
+
   const handleClick = (e: React.MouseEvent) => {
     // Only trigger click if not dragging
     if (isDragging) {
       e.stopPropagation();
+    } else if (onClick) {
+      onClick();
     }
   };
 
@@ -78,6 +143,7 @@ export function ReceiptCard({
         <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
           <div className="flex justify-center pb-24 px-4">
             <div
+              ref={unsortZoneRef}
               className={`pointer-events-auto bg-white rounded-3xl shadow-2xl border-2 transition-all duration-200 ${
                 isOverUnsort
                   ? 'border-red-500 bg-red-50 scale-105'
@@ -113,11 +179,14 @@ export function ReceiptCard({
           isLifted ? 'shadow-xl' : 'shadow-sm'
         } ${isDragging ? 'opacity-50' : 'opacity-100'} ${draggable ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : 'cursor-pointer hover:shadow-md'}`}
         style={{
-          transform: `translateX(${offsetX}px) rotate(${rotation}deg)`,
+          transform: `translateX(${offsetX + swipeOffset}px) rotate(${rotation}deg)`,
         }}
         draggable={draggable}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onClick={handleClick}
       >
       <div className="flex justify-between items-start mb-3">

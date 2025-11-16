@@ -91,11 +91,11 @@ export function ReceiptDetailScreen({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-20 pt-8">
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="px-6 pt-6">
-          <div className="flex items-center justify-between mb-8">
+        <div className="px-6 pt-12">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <button 
                 onClick={onBack}
@@ -154,18 +154,17 @@ export function ReceiptDetailScreen({
             <div className="space-y-3">
               {categoryReceipts.map((receipt) => (
                 <div key={receipt.id} className="relative group">
-                  <div onClick={() => setSelectedReceiptId(receipt.id)}>
-                    <ReceiptCard
-                      id={receipt.id}
-                      merchant={receipt.merchant}
-                      date={receipt.date}
-                      category={receipt.category}
-                      amount={receipt.amount}
-                      score={receipt.score}
-                      draggable={true}
-                      onUnsort={onUnsortReceipt}
-                    />
-                  </div>
+                  <ReceiptCard
+                    id={receipt.id}
+                    merchant={receipt.merchant}
+                    date={receipt.date}
+                    category={receipt.category}
+                    amount={receipt.amount}
+                    score={receipt.score}
+                    draggable={true}
+                    onUnsort={onUnsortReceipt}
+                    onClick={() => setSelectedReceiptId(receipt.id)}
+                  />
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

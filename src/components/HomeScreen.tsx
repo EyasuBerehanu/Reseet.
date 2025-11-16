@@ -46,9 +46,6 @@ export function HomeScreen({
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('#FFFFFF');
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStartY, setDragStartY] = useState(0);
-  const [scrollStartY, setScrollStartY] = useState(0);
 
   const unsortedReceipts = receipts.filter(r => !r.folderId);
   const selectedReceipt = receipts.find(r => r.id === selectedReceiptId);
@@ -68,31 +65,6 @@ export function HomeScreen({
 
   const getCategoryCount = (folderId: number) => {
     return receipts.filter(r => r.folderId === folderId).length;
-  };
-
-  // Touch scroll handlers for unsorted receipts
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    setIsDragging(true);
-    setDragStartY(touch.clientY);
-    setScrollStartY(window.scrollY);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
-
-    const touch = e.touches[0];
-    const deltaY = dragStartY - touch.clientY; // Inverted: drag down = scroll down
-    const newScrollY = scrollStartY + deltaY;
-
-    window.scrollTo({
-      top: newScrollY,
-      behavior: 'auto', // Instant scroll for smooth dragging
-    });
-  };
-
-  const handleTouchEnd = () => {
-    setIsDragging(false);
   };
 
   return (
@@ -148,11 +120,7 @@ export function HomeScreen({
             {unsortedReceipts.map((receipt) => (
               <div
                 key={receipt.id}
-                onClick={() => !isDragging && setSelectedReceiptId(receipt.id)}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                className="touch-none"
+                onClick={() => setSelectedReceiptId(receipt.id)}
               >
                 <ReceiptCard
                   id={receipt.id}
